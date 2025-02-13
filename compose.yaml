@@ -1,0 +1,59 @@
+name: "emerse"
+services:
+
+  database:
+    image: mariadb:latest # https://hub.docker.com/_/mariadb
+    environment:
+      - TZ=${TZ}
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MARIADB_DATABASE=emerse
+      - MARIADB_USER=emerse
+      - MARIADB_PASSWORD=${EMERSE_DB_PASSWORD}
+    volumes:
+      - ${ASSETS}/fresh-install-7.0.0.mariadb.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - 3306:3306
+    healthcheck:
+      test: ["CMD", "/usr/bin/mariadb-admin", "--password=${MARIADB_ROOT_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  solr:
+    build:
+      context: .
+      dockerfile: solr-jdk21.Dockerfile
+    volumes:
+      - ${SOLR_HOME}:/var/solr/data
+    environment:
+      - TZ=${TZ}
+    ports:
+      - 8983:8983
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8983/solr/admin/info/system"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  tomcat:
+    image: tomcat:10
+    volumes:
+      - ${ASSETS}/mariadb-java-client-3.5.2.jar:/usr/local/tomcat/lib/mariadb-java-client-3.5.2.jar
+      - ${ASSETS}/emerse.war:/usr/local/tomcat/webapps/emerse.war
+      - ${EMERSE_HOME}:/app
+    environment:
+      - TZ=${TZ}
+      - EMERSE_DB_PASSWORD=${EMERSE_DB_PASSWORD}
+      - CATALINA_OPTS="-Demerse.properties.filepath=/app/etc/emerse.properties"
+    ports:
+      - 8080:8080
+    depends_on:
+      database:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    restart: unless-stopped

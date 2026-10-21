@@ -56,6 +56,7 @@ The plain `SSO-Username` header is ignored.
 | `database/` | image: MariaDB settings (utf8mb4_bin), the fresh install, and the lock-down run after it |
 | `bin/emerse-user.sh` | create an EMERSE account for a CHI username, with roles |
 | `bin/backup.sh` | nightly MariaDB dump and Solr snapshots |
+| `VERSION` | this repo's release (year.month.release), shared by all three images |
 | `download.sh`, `build.sh` | dev machine: fetch release artifacts; build and push the images |
 | `deploy.sh` | prepare a host: secrets, the pinned CHI key, data directories |
 | `dev/` | a laptop stack with a stand-in for hermes, aquarius and CHI Authentication |
@@ -71,8 +72,22 @@ Nothing that needs GitHub runs on escher.
    home without its demo data into `assets/solr-home/`.
 2. `./build.sh` builds `chi-tools.uc.edu/emerse-database`, `emerse-solr` and
    `emerse-tomcat` for amd64 and arm64.
-3. Commit, then `PUSH=1 ./build.sh`. It pushes `7.2.1`, `7.2.1-g<sha>` and `latest`, and
-   refuses a dirty tree. Requires a one-time `podman login chi-tools.uc.edu`.
+3. Release: bump `VERSION`, commit, tag, then push the images:
+   ```sh
+   git tag -a v$(cat VERSION) -m v$(cat VERSION) && git push origin main v$(cat VERSION)
+   PUSH=1 ./build.sh
+   ```
+   It pushes `<version>`, `<version>-g<sha>` and `latest` for each image. It refuses a
+   dirty tree, and a version whose tag is missing or on another commit, so a released
+   version never changes. `PRERELEASE=1 PUSH=1 ./build.sh` pushes only `-g<sha>`, for
+   testing on escher before a release. Requires a one-time `podman login chi-tools.uc.edu`.
+
+**Versions.** `VERSION` (for example `2026.10.1`; the last part counts releases within the
+month) names a tested set of all three images. Bump it for anything that changes an image:
+our code, a new EMERSE release, a base-image refresh. Docs, `deploy.sh` and `bin/` are not
+in the images and need no release. The EMERSE release inside is `EMERSE_VERSION` in
+`download.sh`; each image carries it as the `org.emerse.version` label, and
+`diagnostics.html` shows it too.
 
 The images hold EMERSE's licensed release files (WAR, schema, Solr plugin) but no PHI and
 no secrets.
@@ -115,8 +130,8 @@ tar czf - compose.yaml .env.example deploy.sh bin | ssh chi-escher 'mkdir -p ~/e
    storage.
 
 **Updating.** Push new images from the dev machine, then on escher run `docker compose
-pull && docker compose up -d`. To roll back, set `TAG=7.2.1-g<sha>` in `.env` and run the
-same command. A new image never touches an existing database or Solr home: the fresh
+pull && docker compose up -d`. Set `TAG` in `.env` to the new release first; to roll back,
+set it to the previous one and run the same command. A new image never touches an existing database or Solr home: the fresh
 install and the Solr seed run only against empty directories.
 
 ## Network exposure

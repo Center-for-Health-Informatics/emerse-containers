@@ -17,8 +17,9 @@ set -a; . ./.env; set +a
 : "${DATA_DIR:?}"
 CONFIG_DIR=${CONFIG_DIR:-./etc/local}
 INDEXES_ZIP=assets/solr-indexes-7.2.0.zip
+EMERSE_VERSION=$(sed -n 's/^EMERSE_VERSION=//p' download.sh 2>/dev/null || true)
 if $demo; then
-	for f in assets/solr-plugin-7.2.1.jar assets/solrconfig.xml "$INDEXES_ZIP"; do
+	for f in "assets/solr-plugin-$EMERSE_VERSION.jar" assets/solrconfig.xml "$INDEXES_ZIP"; do
 		[ -f "$f" ] || { echo "missing $f: run ./download.sh" >&2; exit 1; }
 	done
 fi
@@ -72,10 +73,10 @@ else
 	unzip -q -n -d "$solr_home" "$INDEXES_ZIP"
 	# backup files that slipped into the published zip
 	find "$solr_home" -name '*~' -delete
-	# exactly one EMERSE plugin, the 7.2.1 one: an older emerse-nlp.jar's
+	# exactly one EMERSE plugin, this release's: an older emerse-nlp.jar's
 	# NlpPartialUpdateHandler (a request handler) shadows the 7.2 update handler
 	rm -f "$solr_home"/lib/emerse-nlp.jar "$solr_home"/lib/solr-plugin-*.jar
-	cp assets/solr-plugin-7.2.1.jar "$solr_home/lib/"
+	cp "assets/solr-plugin-$EMERSE_VERSION.jar" "$solr_home/lib/"
 	cp assets/solrconfig.xml "$solr_home/documents/conf/solrconfig.xml"
 	echo "Solr: demo index unpacked" >&2
 fi

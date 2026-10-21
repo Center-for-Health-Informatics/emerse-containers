@@ -7,17 +7,18 @@ ARG SOLR_VERSION=9.9.0
 FROM docker.io/library/solr:${SOLR_VERSION} AS solr
 
 # EMERSE's Solr home from solr-indexes-7.2.0.zip, minus its demo data (download.sh), with
-# exactly one EMERSE plugin, the 7.2.1 one: an older emerse-nlp.jar's
+# exactly one EMERSE plugin, this release's: an older emerse-nlp.jar's
 # NlpPartialUpdateHandler (a request handler) shadows the 7.2 update handler
 FROM --platform=$BUILDPLATFORM docker.io/library/solr:${SOLR_VERSION} AS home
+ARG EMERSE_VERSION
 USER root
 COPY assets/solr-home /solr-home
-COPY assets/solr-plugin-7.2.1.jar assets/solrconfig.xml /tmp/
+COPY assets/solr-plugin-${EMERSE_VERSION}.jar assets/solrconfig.xml /tmp/
 RUN set -eux; \
 	# backup files that slipped into the published zip
 	find /solr-home -name '*~' -delete; \
 	rm -f /solr-home/lib/emerse-nlp.jar /solr-home/lib/solr-plugin-*.jar; \
-	cp /tmp/solr-plugin-7.2.1.jar /solr-home/lib/; \
+	cp /tmp/solr-plugin-${EMERSE_VERSION}.jar /solr-home/lib/; \
 	cp /tmp/solrconfig.xml /solr-home/documents/conf/solrconfig.xml
 
 FROM docker.io/library/eclipse-temurin:21-jre-noble

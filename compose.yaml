@@ -11,7 +11,7 @@ name: emerse
 services:
   database:
     # mariadb:11.4 with database/conf.d and the fresh-install SQL baked in
-    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-database:${TAG:-7.2.1}
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-database:${TAG:?set TAG in .env}
     environment:
       TZ: ${TZ:-America/New_York}
       MARIADB_DATABASE: emerse
@@ -35,7 +35,7 @@ services:
 
   solr:
     # seeds an empty EMERSE Solr home into ${DATA_DIR}/solr on its first start
-    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-solr:${TAG:-7.2.1}
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-solr:${TAG}
     environment:
       TZ: ${TZ:-America/New_York}
       SOLR_HEAP: ${SOLR_HEAP:-4g}
@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
 
   tomcat:
-    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-tomcat:${TAG:-7.2.1}
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-tomcat:${TAG}
     environment:
       TZ: ${TZ:-America/New_York}
       EMERSE_CONTEXT: ${EMERSE_CONTEXT:-emerse}

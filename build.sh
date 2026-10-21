@@ -8,9 +8,11 @@
 #   PUSH=1 ./build.sh              build and push $VERSION, $VERSION-g$SHA and latest
 #   PRERELEASE=1 PUSH=1 ./build.sh push only $VERSION-g$SHA
 #
-# $VERSION is the EMERSE release. Our own changes (the Valve, Tomcat config, the lock-down)
-# move it without a new release, so the -g$SHA tag is what names one build exactly: pin it
-# as TAG in escher's .env to roll back.
+# $VERSION (the VERSION file, year.month.release) names this repo's release of all three
+# images together; escher's .env pins it as TAG. A release push needs the git tag
+# v$VERSION on the commit being built, so a version names one build and never moves.
+# The EMERSE release inside is EMERSE_VERSION in download.sh, recorded as the
+# org.emerse.version label.
 #
 # Requires a one-time `podman login chi-tools.uc.edu` before pushing.
 #
@@ -29,12 +31,14 @@ REGISTRY=${REGISTRY:-chi-tools.uc.edu}
 PLATFORMS=${PLATFORMS:-linux/amd64,linux/arm64}
 IMAGES=${IMAGES:-database solr tomcat}
 
+VERSION=$(cat VERSION)
+[[ $VERSION =~ ^20[0-9]{2}\.(1[0-2]|[1-9])\.[1-9][0-9]*$ ]] || { echo "build.sh: VERSION must be year.month.release, got '$VERSION'" >&2; exit 1; }
 # the release download.sh fetches
-VERSION=7.2.1
+EMERSE_VERSION=$(sed -n 's/^EMERSE_VERSION=//p' download.sh)
 REVISION=$(git rev-parse --short HEAD 2>/dev/null || echo uncommitted)
 git diff --quiet HEAD -- . 2>/dev/null && [[ -z $(git status --porcelain -- .) ]] || REVISION="${REVISION}-dirty"
 
-for f in emerse.war fresh-install-v$VERSION.maria.sql solr-plugin-$VERSION.jar solrconfig.xml mariadb-java-client.jar solr-home/solr.xml; do
+for f in emerse.war fresh-install-v$EMERSE_VERSION.maria.sql solr-plugin-$EMERSE_VERSION.jar solrconfig.xml mariadb-java-client.jar solr-home/solr.xml; do
   [[ -e assets/$f ]] || { echo "build.sh: missing assets/$f: run ./download.sh" >&2; exit 1; }
 done
 
@@ -55,7 +59,9 @@ for NAME in $IMAGES; do
   $ENGINE build --pull=newer \
     --platform "$PLATFORMS" \
     --manifest "${IMAGE}:${VERSION}" \
+    --build-arg EMERSE_VERSION="$EMERSE_VERSION" \
     --label org.opencontainers.image.version="$VERSION" \
+    --label org.emerse.version="$EMERSE_VERSION" \
     --label org.opencontainers.image.revision="$REVISION" \
     --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -f "${NAME}/Dockerfile" \
@@ -70,6 +76,7 @@ echo
 for NAME in $IMAGES; do
   echo "built ${REGISTRY}/emerse-${NAME}:${VERSION}, :${VERSION}-g${REVISION}, :latest"
 done
+echo "(EMERSE ${EMERSE_VERSION})"
 
 if [[ ${PUSH:-0} != 1 ]]; then
   echo
@@ -88,6 +95,18 @@ if [[ ${PRERELEASE:-0} == 1 ]]; then
   TAGS=("${VERSION}-g${REVISION}")
   echo "prerelease: pushing only ${VERSION}-g${REVISION}"
 else
+  # Released versions are immutable: the tag must exist and name this commit. A tag on
+  # another commit means VERSION was not bumped since that release.
+  TAGGED=$(git rev-parse -q --verify "refs/tags/v${VERSION}^{commit}" || true)
+  if [[ -z "$TAGGED" ]]; then
+    echo "build.sh: no git tag v${VERSION}. Tag this commit first:" >&2
+    echo "          git tag -a v${VERSION} -m v${VERSION} && git push origin v${VERSION}" >&2
+    exit 1
+  elif [[ "$TAGGED" != "$(git rev-parse HEAD)" ]]; then
+    echo "build.sh: v${VERSION} is already released at $(git rev-parse --short "$TAGGED")." >&2
+    echo "          Bump VERSION for a new release, or use PRERELEASE=1." >&2
+    exit 1
+  fi
   TAGS=("${VERSION}" "${VERSION}-g${REVISION}" latest)
 fi
 

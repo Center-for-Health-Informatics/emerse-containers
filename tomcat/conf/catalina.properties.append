@@ -1,0 +1,5 @@
+
+# --- EMERSE (emerse7/tomcat) ---
+# ${NAME} in server.xml and context files resolves from the environment
+org.apache.tomcat.util.digester.PROPERTY_SOURCE=org.apache.tomcat.util.digester.EnvironmentPropertySource
+org.apache.catalina.STRICT_SERVLET_COMPLIANCE=true

@@ -1,0 +1,28 @@
+# What hermes (chiauth.conf, proxy-headers*.conf) and aquarius do, minus sign-in: clear
+# client-supplied identity, then send the one dev identity.
+server {
+    listen 8080;
+
+    location = / {
+        return 302 /${EMERSE_CONTEXT}/;
+    }
+
+    # stand-ins for CHI Authentication's pages EMERSE links to
+    location /auth/ {
+        default_type text/plain;
+        return 200 "dev stand-in for CHI Authentication: identity comes from DEV_SSO_ASSERTION\n";
+    }
+
+    location /${EMERSE_CONTEXT}/ {
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "";
+        proxy_set_header SSO-Username "";
+        proxy_set_header SSO-Assertion "${DEV_SSO_ASSERTION}";
+        proxy_pass https://tomcat:8443;
+        proxy_ssl_verify off;
+        proxy_read_timeout 1200s;
+        client_max_body_size 100m;
+    }
+}

@@ -1,0 +1,35 @@
+# EMERSE 7.2.1 settings for the CHI deployment. Baked into the tomcat image, whose
+# entrypoint renders it to /app/emerse.properties, replacing @NAME@ from .env. Keys are
+# read by upstream/modules/org.emerse/org/emerse/server/ServerConfig.java.
+#
+# Secrets (ds.password, admin.clearDemoDataSecret) are NOT here: they live in
+# secrets/emerse-secrets.properties, which Tomcat's context.xml loads after this file.
+
+# preauth: the user is whoever SsoAssertionValve says; no password login, no LDAP
+spring.profiles.active=preauth
+# EMERSE_REDIRECT_TARGET is replaced by the front end with the page to come back to
+preauth.loginUrl=@PUBLIC_ORIGIN@/auth/login?uri=EMERSE_REDIRECT_TARGET
+preauth.logoutUrl=@PUBLIC_ORIGIN@/auth/logout
+originHostnames=@PUBLIC_ORIGIN@
+
+ds.url=jdbc:mariadb://database:3306/emerse
+ds.username=emerse
+
+solr.serviceURL=http://solr:8983/solr/
+solr.documentsCollection=documents
+solr.patientCollection=patient
+
+resources.dir=/app/resources
+
+contact.url=mailto:combmichi@uc.edu
+contact.text=the Center for Health Informatics
+
+# carried over from v6 (server/opt/tomcat/emerse.properties): Clarity MRNs are 8 digits
+patientList.MRNFormat=%8s
+patientList.MRNFormatUseZeroPad=true
+patientList.MRNLimit=100000
+
+application.idle.timeout=3600
+
+# note downloads leave UC Health as files; encrypt them
+noteDownload.useAES256=true

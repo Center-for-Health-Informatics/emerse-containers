@@ -1,0 +1,6 @@
+{
+  "comment": "Minted by Tools/auth lib/sso.js with a throwaway dev key, to prove jose output verifies here.",
+  "now": 1792526392,
+  "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkdYRVhRdV9JdW9jWU9GemFtRzZlYkJIRjVJQ1JWMkFabzJabC1DRVQtemciLCJ0eXAiOiJKV1QifQ.eyJlbWFpbCI6ImlyZXRvbnJ0QHVjbWFpbC51Yy5lZHUiLCJnaXZlbl9uYW1lIjoiUm9iIiwiZmFtaWx5X25hbWUiOiJOZ3V54buFbiIsImlzcyI6Imh0dHBzOi8vY2hpLXRvb2xzLnVjLmVkdS9hdXRoLyIsImF1ZCI6ImNoaS10b29scy51Yy5lZHUiLCJzdWIiOiJpcmV0b25ydCIsImlhdCI6MTc5MjUyNjM5MiwiZXhwIjoxNzkyNTI2NTEyfQ.Clo_k79Bs18rZmZzyPY9F8ViC_c0u2f2H4q9MYpDb38bAkULp4NEAvG1-7obVdcaWF-EOiHpxMZnKuQvXnActQ",
+  "jwks": "{\"keys\":[{\"kty\":\"EC\",\"x\":\"_L1IfYVWlrrouXW4wyRJRBqm_QiLI2XAMdJNllsZwjs\",\"y\":\"zcPMaWHTRdekGFeERK_dg0rJBDtj3ScKPbFoWZ40-R8\",\"crv\":\"P-256\",\"kid\":\"GXEXQu_IuocYOFzamG6ebBHF5ICRV2AZo2Zl-CET-zg\",\"alg\":\"ES256\",\"use\":\"sig\"}]}"
+}

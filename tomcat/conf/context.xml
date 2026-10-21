@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context>
+	<WatchedResource>WEB-INF/web.xml</WatchedResource>
+	<WatchedResource>WEB-INF/tomcat-web.xml</WatchedResource>
+	<WatchedResource>${catalina.base}/conf/web.xml</WatchedResource>
+	<!-- no session persistence across restarts: sessions carry PHI-bearing state -->
+	<Manager pathname=""/>
+	<!--
+		EmerseServlet loads this file after -Demerse.properties.filepath, so its values
+		(ds.password, admin.clearDemoDataSecret) win and stay out of /app/etc.
+	-->
+	<Environment name="emerse.properties.filepath" type="java.lang.String"
+			value="/run/secrets/emerse-secrets.properties" override="false"/>
+</Context>

@@ -1,59 +1,108 @@
-name: "emerse"
-services:
+# EMERSE 7.2.1 on chi-escher (UC Health). Everything here can hold PHI.
+#
+# Only tomcat publishes a port, on BIND_ADDRESS, TLS only; the host firewall must limit it
+# to chi-aquarius (README: "Network exposure"). database and solr sit on an internal
+# network with no route out and no published ports.
+#
+# The images come from the CHI registry (build.sh, on a dev machine), so escher needs only
+# this file, .env, deploy.sh and bin/: no git checkout, no GitHub credentials.
+name: emerse
 
+services:
   database:
-    image: mariadb:latest # https://hub.docker.com/_/mariadb
+    # mariadb:11.4 with database/conf.d and the fresh-install SQL baked in
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-database:${TAG:-7.2.1}
     environment:
-      - TZ=${TZ}
-      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
-      - MARIADB_DATABASE=emerse
-      - MARIADB_USER=emerse
-      - MARIADB_PASSWORD=${EMERSE_DB_PASSWORD}
+      TZ: ${TZ:-America/New_York}
+      MARIADB_DATABASE: emerse
+      MARIADB_USER: emerse
+      MARIADB_PASSWORD_FILE: /run/secrets/emerse_db_password
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/mariadb_root_password
+      MARIADB_AUTO_UPGRADE: "1"
+    secrets: [emerse_db_password, mariadb_root_password]
     volumes:
-      - ${ASSETS}/fresh-install-7.0.0.mariadb.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - 3306:3306
+      # first start on an empty directory runs the fresh install, then 90-chi-lockdown.sql
+      - ${DATA_DIR:?set DATA_DIR in .env}/mariadb:/var/lib/mysql
+      - ${DATA_DIR}/backups:/backups
     healthcheck:
-      test: ["CMD", "/usr/bin/mariadb-admin", "--password=${MARIADB_ROOT_PASSWORD}", "ping"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 60s
+    networks: [backend]
     restart: unless-stopped
 
   solr:
-    build:
-      context: .
-      dockerfile: solr-jdk21.Dockerfile
-    volumes:
-      - ${SOLR_HOME}:/var/solr/data
+    # seeds an empty EMERSE Solr home into ${DATA_DIR}/solr on its first start
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-solr:${TAG:-7.2.1}
     environment:
-      - TZ=${TZ}
-    ports:
-      - 8983:8983
+      TZ: ${TZ:-America/New_York}
+      SOLR_HEAP: ${SOLR_HEAP:-4g}
+    volumes:
+      - ${DATA_DIR}/solr:/var/solr
+      # inside SOLR_HOME, where snapshots are allowed without changing upstream's solr.xml
+      - ${DATA_DIR}/backups/solr:/var/solr/data/backups
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8983/solr/admin/info/system"]
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8983/solr/admin/info/system"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 60s
+    networks: [backend]
     restart: unless-stopped
 
   tomcat:
-    image: tomcat:10
-    volumes:
-      - ${ASSETS}/mariadb-java-client-3.5.2.jar:/usr/local/tomcat/lib/mariadb-java-client-3.5.2.jar
-      - ${ASSETS}/emerse.war:/usr/local/tomcat/webapps/emerse.war
-      - ${EMERSE_HOME}:/app
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-tomcat:${TAG:-7.2.1}
     environment:
-      - TZ=${TZ}
-      - EMERSE_DB_PASSWORD=${EMERSE_DB_PASSWORD}
-      - CATALINA_OPTS="-Demerse.properties.filepath=/app/etc/emerse.properties"
+      TZ: ${TZ:-America/New_York}
+      EMERSE_CONTEXT: ${EMERSE_CONTEXT:-emerse}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in .env}
+      TOMCAT_HEAP: ${TOMCAT_HEAP:-2g}
+      SSO_ISSUER: ${SSO_ISSUER:?set SSO_ISSUER in .env}
+      SSO_AUDIENCE: ${SSO_AUDIENCE:?set SSO_AUDIENCE in .env}
+      SSO_TRUSTED_PROXIES: ${SSO_TRUSTED_PROXIES:-}
+      CLIENT_IP_INTERNAL_PROXIES: ${CLIENT_IP_INTERNAL_PROXIES:-}
+      CLIENT_IP_TRUSTED_PROXIES: ${CLIENT_IP_TRUSTED_PROXIES:-}
+    secrets:
+      - emerse-secrets.properties
+      - tls.crt
+      - tls.key
+    volumes:
+      # the pinned CHI Authentication JWKS
+      - ${CONFIG_DIR:-./etc/local}:/app/etc:ro
+      - ${DATA_DIR}/resources:/app/resources
+      - ${DATA_DIR}/tomcat-logs:/usr/local/tomcat/logs
     ports:
-      - 8080:8080
+      - ${BIND_ADDRESS:?set BIND_ADDRESS in .env}:${HTTPS_PORT:-8443}:8443
+    healthcheck:
+      # no assertion, so this is a signed-out request: proves Tomcat and the WAR are up
+      test: ["CMD-SHELL", "curl -fsSk -o /dev/null https://localhost:8443/$$EMERSE_CONTEXT/diagnostics.html"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     depends_on:
       database:
         condition: service_healthy
       solr:
         condition: service_healthy
+    networks: [backend, frontend]
     restart: unless-stopped
+
+networks:
+  backend:
+    internal: true
+  frontend: {}
+
+secrets:
+  emerse_db_password:
+    file: ./secrets/emerse_db_password
+  mariadb_root_password:
+    file: ./secrets/mariadb_root_password
+  emerse-secrets.properties:
+    file: ./secrets/emerse-secrets.properties
+  tls.crt:
+    file: ./secrets/tls.crt
+  tls.key:
+    file: ./secrets/tls.key

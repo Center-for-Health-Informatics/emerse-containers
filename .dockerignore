@@ -1,0 +1,9 @@
+# build.sh sends the repo root as the context; keep data, secrets and the 3 GB zip out
+.git
+.env
+data/
+secrets/
+etc/local/
+dev/
+assets/solr-indexes-*.zip
+sso-valve/target/

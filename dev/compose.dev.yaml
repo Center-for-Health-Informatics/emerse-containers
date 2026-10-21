@@ -1,0 +1,25 @@
+# Local demo stack: stands in for hermes + CHI Authentication + aquarius with one nginx
+# that injects a dev SSO-Assertion. Demo data only; see dev/README.md.
+#
+#   docker compose -f compose.yaml -f dev/compose.dev.yaml up -d   (after ./build.sh)
+services:
+  database:
+    volumes:
+      # a macOS bind mount is case-insensitive, which makes MariaDB fall back to
+      # lower_case_table_names=2 and the fresh install fail; keep it inside the VM
+      - mariadb-dev:/var/lib/mysql
+
+  devproxy:
+    image: docker.io/library/nginx:1.30-alpine
+    environment:
+      EMERSE_CONTEXT: ${EMERSE_CONTEXT:-emerse}
+      DEV_SSO_ASSERTION: "${DEV_SSO_ASSERTION:?export DEV_SSO_ASSERTION=$$(node dev/dev-signer.mjs token USERNAME)}"
+    volumes:
+      - ./dev/nginx:/etc/nginx/templates:ro
+    ports:
+      - 127.0.0.1:${DEV_PORT:-8088}:8080
+    depends_on: [tomcat]
+    networks: [frontend]
+
+volumes:
+  mariadb-dev: {}

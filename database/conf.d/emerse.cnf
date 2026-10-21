@@ -1,0 +1,7 @@
+[mariadb]
+# EMERSE install guide: the database must be utf8mb4 with a case-sensitive collation
+character-set-server = utf8mb4
+collation-server = utf8mb4_bin
+# patient lists and synonym uploads arrive as large statements
+max_allowed_packet = 256M
+innodb_buffer_pool_size = 2G

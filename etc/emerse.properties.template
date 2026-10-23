@@ -33,3 +33,10 @@ application.idle.timeout=3600
 
 # note downloads leave UC Health as files; encrypt them
 noteDownload.useAES256=true
+
+# The hourly index-stats job copies the documents core's min/max ENCOUNTER_DATE into
+# SOLR_INDEX. On an empty core Solr answers with Java's sentinel dates (year 292278994),
+# MariaDB rejects them, and the job logs a stack trace every hour. The patient count still
+# updates. Set both back to true once the loader has filled the core.
+batch.updateIndexMinDateFromSOLRIndex=false
+batch.updateIndexMaxDateFromSOLRIndex=false

@@ -16,7 +16,7 @@
 				SSLEnabled="true" scheme="https" secure="true"
 				connectionTimeout="20000" maxParameterCount="1000"
 				server="EMERSE">
-			<SSLHostConfig protocols="TLSv1.2,TLSv1.3">
+			<SSLHostConfig protocols="+TLSv1.2,+TLSv1.3">
 				<Certificate certificateFile="/run/secrets/tls.crt"
 						certificateKeyFile="/run/secrets/tls.key"/>
 			</SSLHostConfig>

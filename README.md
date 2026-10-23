@@ -159,10 +159,20 @@ publish nothing, and their network is `internal` (no route out).
 
 The fresh install ships four app accounts with well-known passwords: `emerse`/`demouser`,
 `mrnuser`, `listuser` and the aggregate user. `database/initdb/90-chi-lockdown.sql` sets
-every `LOGIN_ACCOUNT` to external auth with no usable password. With no LDAP profile and
-the Valve stripping `Authorization`, the only way in is a CHI assertion. Nobody signs in to
-CHI as `emerse`, so those accounts are inert. Deactivate them in the admin app once real
-accounts exist.
+every `LOGIN_ACCOUNT` to external auth with no usable password and deactivates it. With no
+LDAP profile and the Valve stripping `Authorization`, the only way in is a CHI assertion,
+and an inactive account is refused even then. Accounts created later with
+`bin/emerse-user.sh` or the admin app are active.
+
+That script runs only on an empty data volume. On a database initialized before the
+deactivation was added, run this:
+
+```sh
+docker compose exec -T database sh -c 'mariadb -u emerse -p"$(cat /run/secrets/emerse_db_password)" emerse' <<'SQL'
+update LOGIN_ACCOUNT set ACTIVE_STATUS = false, UPDATE_DATE = current_timestamp, MODIFIED_BY = 'chi-lockdown'
+ where USER_ID in ('emerse', 'agguser', 'listuser', 'mrnuser');
+SQL
+```
 
 EMERSE usernames must match CHI's `SSO-Username` exactly, case included: a UC 6+2, or an
 email address for Children's and email-link accounts.

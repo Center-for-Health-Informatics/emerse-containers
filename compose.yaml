@@ -39,6 +39,9 @@ services:
     environment:
       TZ: ${TZ:-America/New_York}
       SOLR_HEAP: ${SOLR_HEAP:-4g}
+    # Solr checks for 65000 at startup; Docker's default is 1024
+    ulimits:
+      nofile: 65000
     volumes:
       - ${DATA_DIR}/solr:/var/solr
       # inside SOLR_HOME, where snapshots are allowed without changing upstream's solr.xml

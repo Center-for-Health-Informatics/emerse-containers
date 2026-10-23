@@ -53,10 +53,12 @@ The plain `SSO-Username` header is ignored.
 | `solr/` | image: the official Solr 9.9 lifted onto Java 21 (the EMERSE plugins need 21), plus an empty EMERSE Solr home it seeds on first start |
 | `sso-valve/` | the Valve, with tests (one verifies a token minted by CHI Authentication itself) |
 | `etc/emerse.properties.template` | EMERSE settings; baked into the tomcat image, which fills in `PUBLIC_ORIGIN` |
-| `database/` | image: MariaDB settings (utf8mb4_bin), the fresh install, and the lock-down run after it |
+| `database/` | image: MariaDB settings (utf8mb4_bin), the fresh install, and the lock-down and source relabel run after it; `purge-demo-patients.sql` |
+| `loader/` | image: the note loader, run on demand; a synthetic fixture generator |
 | `bin/emerse-user.sh` | create an EMERSE account for a CHI username, with roles |
 | `bin/backup.sh` | nightly MariaDB dump and Solr snapshots |
-| `VERSION` | this repo's release (year.month.release), shared by all three images |
+| `bin/sample-notes.py` | copy a patient sample of the note exports |
+| `VERSION` | this repo's release (year.month.release), shared by all four images |
 | `download.sh`, `build.sh` | dev machine: fetch release artifacts; build and push the images |
 | `deploy.sh` | prepare a host: secrets, the pinned CHI key, data directories |
 | `dev/` | a laptop stack with a stand-in for hermes, aquarius and CHI Authentication |
@@ -70,8 +72,8 @@ Nothing that needs GitHub runs on escher.
 
 1. `./download.sh` fetches about 3.1 GB, including the 7.2.0 Solr home, and unpacks that
    home without its demo data into `assets/solr-home/`.
-2. `./build.sh` builds `chi-tools.uc.edu/emerse-database`, `emerse-solr` and
-   `emerse-tomcat` for amd64 and arm64.
+2. `./build.sh` builds `chi-tools.uc.edu/emerse-database`, `emerse-solr`,
+   `emerse-tomcat` and `emerse-loader` for amd64 and arm64.
 3. Release: bump `VERSION`, commit, tag, then push the images:
    ```sh
    git tag -a v$(cat VERSION) -m v$(cat VERSION) && git push origin main v$(cat VERSION)
@@ -83,7 +85,7 @@ Nothing that needs GitHub runs on escher.
    testing on escher before a release. Requires a one-time `podman login chi-tools.uc.edu`.
 
 **Versions.** `VERSION` (for example `2026.10.1`; the last part counts releases within the
-month) names a tested set of all three images. Bump it for anything that changes an image:
+month) names a tested set of all four images. Bump it for anything that changes an image:
 our code, a new EMERSE release, a base-image refresh. Docs, `deploy.sh` and `bin/` are not
 in the images and need no release. The EMERSE release inside is `EMERSE_VERSION` in
 `download.sh`; each image carries it as the `org.emerse.version` label, and
@@ -95,10 +97,10 @@ no secrets.
 ## Deploying on chi-escher
 
 Needs Docker with Compose v2, and about 32 GB RAM and 8 CPUs for the full index. Escher
-needs only four things from this repo, about 20 KB, with no checkout:
+needs only these files from this repo, about 30 KB, with no checkout:
 
 ```sh
-tar czf - compose.yaml .env.example deploy.sh bin | ssh chi-escher 'mkdir -p ~/emerse7 && tar xzf - -C ~/emerse7'
+tar czf - compose.yaml .env.example deploy.sh bin database/*.sql database/initdb | ssh chi-escher 'mkdir -p ~/emerse7 && tar xzf - -C ~/emerse7'
 ```
 
 1. `docker login chi-tools.uc.edu` once.
@@ -114,7 +116,8 @@ tar czf - compose.yaml .env.example deploy.sh bin | ssh chi-escher 'mkdir -p ~/e
      with a certificate from the CHI CA, then turn `proxy_ssl_verify` on in aquarius's
      snippet.
 5. `docker compose pull && docker compose up -d`.
-   - On the first start MariaDB runs the fresh install, then `90-chi-lockdown.sql`, and
+   - On the first start MariaDB runs the fresh install, then `90-chi-lockdown.sql` and
+     `91-chi-sources.sql`, and
      Solr seeds an empty EMERSE home into `$DATA_DIR/solr`.
    - **If that first start fails partway, the volume is left half-built and later starts
      look healthy.** Stop the stack, empty `$DATA_DIR/mariadb`, and start again.
@@ -207,14 +210,80 @@ email address for Children's and email-link accounts.
 
 ## Loading notes
 
-Not part of this first build. The v6 loader
-(`legacy/v6Emerse/emerse_admin/.../load_valid_json_with_source.py`) needs rewriting for
-7.x:
-- prepend the NLP header and compute `AGE_DAYS` and `AGE_MONTHS`;
-- upsert `PATIENT` rows in MariaDB, so a null DOB no longer fails a whole file;
-- post to Solr 9.
+`loader/load-notes.py` (the `emerse-loader` image) loads Epic's weekly JSON exports, one
+file per note type and week (`<type>_<YYYY_MM_DD>_<YYYY_MM_DD>.json`). It replaces v6's
+`load_valid_json_with_source.py`:
+- Patients are upserted into MariaDB `PATIENT` (matched on MRN, marked `CREATED_BY
+  chi-loader`) and the Solr `patient` core. Sex is coded F/M/U; race and ethnicity are kept
+  as Epic's labels (v6 folded most of them into U).
+- Notes go to the Solr `documents` core with `AGE_DAYS`, `AGE_MONTHS` (−1 with no DOB, as
+  `solr.missingAgeValue`) and the NLP header. Solr runs the NLP (cTAKES, negation, family
+  history) as it indexes, so indexing, not the loader, sets the pace.
+- An export holds every version of an edited note under one `NoteID` (13% of rows).
+  Only the latest is kept (by `NoteDate`, then `NoteCSN`). Exports load oldest week first,
+  so a newer week overwrites an older one. Loading an older export again later would put
+  back older versions; `--force` the newer weeks after it.
+- Note text is HTML-escaped before v6's line-break rules (four spaces and `•` become
+  `<br>`). Solr strips HTML before indexing, and v6's unescaped text lost whatever
+  followed a bare `<`, as in `<5 mg`.
+- Times are Epic's local wall-clock times, stored as if UTC (as v6 did): EMERSE renders
+  dates in UTC, so they display unchanged.
+- It prints only file names and counts. Solr error bodies, which can quote notes, go to
+  `$DATA_DIR/loader/errors/`. `--debug` stops at the first failure with a traceback; that
+  can quote PHI.
 
-Build it against synthetic fixtures first. Real exports (`../data-PHI/`) are loaded only
+`NoteSource` maps to sources 1–5: Main EHR, Pathology, Radiology, Other, Cardiology. 7.2
+ships `source5` as "Scanned/PDFs"; `database/initdb/91-chi-sources.sql` relabels it on a
+fresh install. The loader refuses to run until `source5` is Cardiology.
+
+**From scratch** (a new host, or a dev server being reset), on the host:
+
+1. `docker compose down`, then empty `$DATA_DIR` (`mariadb`, `solr`, `loader`).
+2. `sudo ./deploy.sh`, then `docker compose pull && docker compose up -d`. The fresh
+   install runs `90-chi-lockdown.sql` and `91-chi-sources.sql`.
+3. Remove the fresh install's ~10,000 demo patients. This deletes every patient the loader
+   didn't create, so never run it on the demo stack:
+   ```sh
+   docker compose exec -T database sh -c 'mariadb -u emerse -p"$(cat /run/secrets/emerse_db_password)" emerse' < database/purge-demo-patients.sql
+   ```
+   (The admin app's System → Clear Demo Data needs `admin.clearDemoDataSecret` set, and
+   its "All Patients" option takes real patients too.)
+4. `bin/emerse-user.sh <your-6+2> <First> <Last> ADMIN EMERSE_FULL`.
+5. Load (the image comes down on first use):
+   ```sh
+   EXPORTS=/path/to/exports docker compose run --rm loader --dry-run   # counts only
+   EXPORTS=/path/to/exports docker compose run --rm loader
+   ```
+6. In the admin app, System → Synchronization, all boxes ticked, Synchronize. That copies
+   `PATIENT` into the Solr patient index (removing any patient a failed run left behind),
+   refreshes document statistics and caches, so the filters list the new document types
+   and departments, and fills in any missing ages.
+7. `du -sh $DATA_DIR/solr/data/documents/data` against the notes loaded gives the index
+   size per note, for sizing the next sample.
+
+On a database created before `91-chi-sources.sql` existed, run it by hand once, the same
+way as step 3; it is safe to repeat.
+
+`$DATA_DIR/loader/loaded.tsv` records each export loaded, and a rerun skips those: drop new
+weeks into the directory and run it again, then synchronize again. `--force NAME...`
+reloads the named exports. `--threads` (default 4) sets concurrent Solr updates. With
+podman-compose, add `--profile loader` before `run`.
+
+**Sampling.** The full index doesn't fit on escher yet. `bin/sample-notes.py` copies a
+sample of patients, with all their notes. A patient is kept when a hash of the MRN
+falls below `--fraction`, so later exports keep the same patients, and a larger fraction
+contains every smaller one:
+
+```sh
+bin/sample-notes.py --dry-run exports                         # totals, writes nothing
+bin/sample-notes.py --fraction 0.01 exports exports-1pct      # still PHI
+```
+
+The Q1 2026 export is 12.8 GB: 4.2M rows, 212k patients. 1% is 2,100 patients, 46k notes,
+about 140 MB of JSON.
+
+**Testing.** `loader/fixtures/make-fixtures.py DIR` writes made-up exports in the same
+shape, including the cases above. Use those on the dev stack; real notes are loaded only
 on escher.
 
 ## Cutover from v6

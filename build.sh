@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build the three EMERSE images (database, solr, tomcat) for linux/amd64 + linux/arm64 and,
+# Build the EMERSE images (database, solr, tomcat, loader) for linux/amd64 + linux/arm64 and,
 # with PUSH=1, push them to the CHI registry. Runs on a dev machine after ./download.sh;
 # escher only pulls, so it needs neither this checkout nor GitHub credentials.
 #
@@ -8,7 +8,7 @@
 #   PUSH=1 ./build.sh              build and push $VERSION, $VERSION-g$SHA and latest
 #   PRERELEASE=1 PUSH=1 ./build.sh push only $VERSION-g$SHA
 #
-# $VERSION (the VERSION file, year.month.release) names this repo's release of all three
+# $VERSION (the VERSION file, year.month.release) names this repo's release of all the
 # images together; escher's .env pins it as TAG. A release push needs the git tag
 # v$VERSION on the commit being built, so a version names one build and never moves.
 # The EMERSE release inside is EMERSE_VERSION in download.sh, recorded as the
@@ -19,7 +19,7 @@
 # Environment overrides:
 #   REGISTRY    registry host           (default chi-tools.uc.edu)
 #   PLATFORMS   comma-separated targets (default linux/amd64,linux/arm64)
-#   IMAGES      which to build          (default "database solr tomcat")
+#   IMAGES      which to build          (default "database solr tomcat loader")
 #   PUSH        set to 1 to push
 #   PRERELEASE  set to 1 to push only the $VERSION-g$SHA tag
 #   FORCE       set to 1 to allow pushing from a dirty working tree
@@ -29,7 +29,7 @@ cd "$(dirname "$0")"
 
 REGISTRY=${REGISTRY:-chi-tools.uc.edu}
 PLATFORMS=${PLATFORMS:-linux/amd64,linux/arm64}
-IMAGES=${IMAGES:-database solr tomcat}
+IMAGES=${IMAGES:-database solr tomcat loader}
 
 VERSION=$(cat VERSION)
 [[ $VERSION =~ ^20[0-9]{2}\.(1[0-2]|[1-9])\.[1-9][0-9]*$ ]] || { echo "build.sh: VERSION must be year.month.release, got '$VERSION'" >&2; exit 1; }

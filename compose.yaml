@@ -93,6 +93,25 @@ services:
     networks: [backend, frontend]
     restart: unless-stopped
 
+  # on demand only (README, "Loading notes"):
+  #   EXPORTS=/path/to/exports docker compose run --rm loader
+  loader:
+    image: ${REGISTRY:-chi-tools.uc.edu}/emerse-loader:${TAG}
+    profiles: [loader]
+    environment:
+      TZ: ${TZ:-America/New_York}
+    secrets: [emerse_db_password]
+    volumes:
+      - ${EXPORTS:-./exports}:/exports:ro
+      # the ledger of loaded exports and Solr's error bodies (PHI)
+      - ${DATA_DIR}/loader:/state
+    depends_on:
+      database:
+        condition: service_healthy
+      solr:
+        condition: service_healthy
+    networks: [backend]
+
 networks:
   backend:
     internal: true

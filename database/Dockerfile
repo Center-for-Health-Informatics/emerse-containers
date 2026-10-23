@@ -5,6 +5,7 @@ FROM docker.io/library/mariadb:11.4
 ARG EMERSE_VERSION
 
 COPY database/conf.d/ /etc/mysql/conf.d/
-# first start on an empty volume only: schema + demo rows, then lock the demo accounts
+# first start on an empty volume only: schema + demo rows, then lock the demo accounts and
+# relabel source5 as Cardiology
 COPY assets/fresh-install-v${EMERSE_VERSION}.maria.sql /docker-entrypoint-initdb.d/10-fresh-install.sql
-COPY database/initdb/90-chi-lockdown.sql /docker-entrypoint-initdb.d/
+COPY database/initdb/90-chi-lockdown.sql database/initdb/91-chi-sources.sql /docker-entrypoint-initdb.d/

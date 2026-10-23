@@ -61,7 +61,7 @@ if [ ! -f "$CONFIG_DIR/chi-auth-jwks.json" ]; then
 fi
 
 # --- data ---
-mkdir -p "$DATA_DIR/mariadb" "$DATA_DIR/solr" "$DATA_DIR/resources" "$DATA_DIR/tomcat-logs" "$DATA_DIR/backups"
+mkdir -p "$DATA_DIR/mariadb" "$DATA_DIR/solr" "$DATA_DIR/resources" "$DATA_DIR/tomcat-logs" "$DATA_DIR/backups" "$DATA_DIR/loader"
 
 solr_home="$DATA_DIR/solr/data"
 if [ -d "$solr_home/documents" ]; then

@@ -82,6 +82,9 @@ else
 fi
 
 if [ "$(id -u)" = 0 ]; then
+	# compose mounts backups/solr inside SOLR_HOME; if SOLR_HOME is missing, Docker
+	# creates it as root to hold that mount point and the seed can't write to it
+	mkdir -p "$solr_home"
 	chown -R 8983:8983 "$DATA_DIR/solr"
 	mkdir -p "$DATA_DIR/backups/solr"
 	chown 8983:8983 "$DATA_DIR/backups/solr"

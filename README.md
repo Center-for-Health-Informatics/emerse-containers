@@ -67,7 +67,7 @@ The plain `SSO-Username` header is ignored.
 
 ## Building the images
 
-On a dev machine with podman and `gh` signed in with access to `project-emerse/emerse`.
+On a Mac with Apple's `container`, and `gh` signed in with access to `project-emerse/emerse`.
 Nothing that needs GitHub runs on escher.
 
 1. `./download.sh` fetches about 3.1 GB, including the 7.2.0 Solr home, and unpacks that
@@ -82,7 +82,10 @@ Nothing that needs GitHub runs on escher.
    It pushes `<version>`, `<version>-g<sha>` and `latest` for each image. It refuses a
    dirty tree, and a version whose tag is missing or on another commit, so a released
    version never changes. `PRERELEASE=1 PUSH=1 ./build.sh` pushes only `-g<sha>`, for
-   testing on escher before a release. Requires a one-time `podman login chi-tools.uc.edu`.
+   testing on escher before a release. Requires a one-time
+   `container registry login chi-tools.uc.edu` (from a desktop terminal) and
+   `skopeo login chi-tools.uc.edu`, plus
+   trivy and syft: a push stops on fixable HIGH/CRITICAL findings (`SCAN=warn` overrides).
 
 **Versions.** `VERSION` (for example `2026.10.1`; the last part counts releases within the
 month) names a tested set of all four images. Bump it for anything that changes an image:

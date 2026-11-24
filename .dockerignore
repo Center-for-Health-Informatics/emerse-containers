@@ -7,3 +7,4 @@ etc/local/
 dev/
 assets/solr-indexes-*.zip
 sso-valve/target/
+build

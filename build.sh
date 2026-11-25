@@ -177,6 +177,39 @@ if [[ $PUSH == 1 ]]; then
   fi
 fi
 
+# --- Scan databases: before building, so that a failed download costs no build --------
+
+# Trivy's databases last about a day. A VPN that carries only IPv4 can leave this machine
+# with IPv6 addresses that go nowhere, and trivy does not always fall back; a container has
+# no IPv6 route, so the same download is retried in one. An expired database is never used.
+TRIVY_SKIP=()
+refresh_db() {
+  local flag=$1 attempt version
+  for attempt in 1 2 3; do
+    if trivy image --quiet "$flag"; then return 0; fi
+    (( attempt == 3 )) || sleep $((attempt * 2))
+  done
+  warn "trivy could not download its database (${flag}); trying from a container"
+  version=$(trivy version --format json | jq -r .Version)
+  mkdir -p "$TRIVY_CACHE_DIR"
+  container run --rm --progress none --volume "${TRIVY_CACHE_DIR}:/cache" "docker.io/aquasec/trivy:${version}" \
+    image --quiet --cache-dir /cache "$flag" ||
+    die "trivy could not download its database (${flag}). Nothing was built."
+}
+
+if [[ $PUSH == 1 ]]; then
+  # trivy's own default on macOS, named so that the container writes to the same place.
+  export TRIVY_CACHE_DIR=${TRIVY_CACHE_DIR:-$HOME/Library/Caches/trivy}
+  refresh_db --download-db-only
+  TRIVY_SKIP+=(--skip-db-update)
+  # Only images that contain Java need this one, and it is large: refreshed if it is in
+  # use here, and otherwise left to the scan.
+  if [[ -d $TRIVY_CACHE_DIR/java-db ]]; then
+    refresh_db --download-java-db-only
+    TRIVY_SKIP+=(--skip-java-db-update)
+  fi
+fi
+
 # --- Build ---------------------------------------------------------------------------
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/build-sh.XXXXXX")
@@ -247,9 +280,14 @@ for NAME in "${NAMES[@]}"; do
   mkdir "$LAYOUT"
   tar -xf "${LAYOUT}.tar" -C "$LAYOUT"
   rm -f -- "${LAYOUT}.tar"
+  # By default trivy skips language packages that a .deb or .rpm installed, trusting the
+  # distro's advisories to cover them. They don't cover third-party packages: Shiny
+  # Server's bundles its own Node modules. comprehensive scans those too.
+  #
   # 10 is ours; any other failure is trivy's own and is not a finding.
   rc=0
-  trivy image --quiet --input "$LAYOUT" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 10 || rc=$?
+  trivy image --quiet "${TRIVY_SKIP[@]}" --input "$LAYOUT" --detection-priority comprehensive \
+    --severity HIGH,CRITICAL --ignore-unfixed --exit-code 10 || rc=$?
   case $rc in
     0) ;;
     10) BLOCKED+=("$NAME") ;;

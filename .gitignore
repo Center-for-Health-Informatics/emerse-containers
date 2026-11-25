@@ -4,3 +4,4 @@ secrets/
 etc/local/
 data/
 sso-valve/target/
+/build/

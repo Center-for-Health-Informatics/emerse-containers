@@ -7,7 +7,7 @@ notes here.**
 
 ```sh
 ./download.sh
-PLATFORMS=linux/arm64 ./build.sh   # this machine's architecture is enough here
+LOAD=podman PLATFORMS=linux/arm64 ./build.sh   # this machine's architecture is enough here
 cp .env.example .env      # then edit: see below
 mkdir -p etc/local && node dev/dev-signer.mjs jwks etc/local
 ./deploy.sh --demo
@@ -16,8 +16,10 @@ docker compose -f compose.yaml -f dev/compose.dev.yaml up -d
 open http://localhost:8088/emerse7/
 ```
 
-With podman, use `podman-compose` and `COMPOSE=podman-compose bin/…`. After changing an
-image, rerun `build.sh` (`IMAGES=tomcat` for one) and recreate that service.
+`build.sh` builds with Apple's `container`, whose images podman cannot see; `LOAD=podman`
+copies them across. With podman, use `podman-compose` and `COMPOSE=podman-compose bin/…`.
+After changing an image, rerun `build.sh` the same way (`IMAGES=tomcat` for one) and
+recreate that service.
 
 `.env` for a laptop:
 
